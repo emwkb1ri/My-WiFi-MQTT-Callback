@@ -22,6 +22,9 @@
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
 char ssid[] = SECRET_SSID;        // your network SSID (name)
 char pass[] = SECRET_PASS;    // your network password (use for WPA, or use as key for WEP)
+const char *myHostname = "MKR1010";  // set the hostname of this device
+byte mac[6];  // the MAC address of your WiFi Module
+IPAddress ip; // the IP address of this board
 
 // To connect with SSL/TLS:
 // 1) Change WiFiClient to WiFiSSLClient.
@@ -55,6 +58,8 @@ boolean glob_flash = false;
 unsigned long cMillis = 0;
 unsigned long p1Millis = 0; 
 unsigned long p2Millis = 0;
+unsigned long mqttStartTime = 0;
+unsigned long mqttUpTime = 0;
 int ledState = HIGH; // start with LED off
 int led3State = HIGH; // start with LED off
 
@@ -77,6 +82,9 @@ void setup() {
     ; // wait for serial port to connect. Needed for native USB port only
   }
 
+  // attempt to connect to WiFi network
+  connectToWiFi();
+/*  
   // attempt to connect to Wifi network:
   Serial.print("Attempting to connect to WPA SSID: ");
   Serial.println(ssid);
@@ -88,17 +96,20 @@ void setup() {
 
   Serial.println("You're connected to the network");
   Serial.println();
+*/
 
   // You can provide a unique client ID, if not set the library uses Arduin-millis()
   // Each client must have a unique client ID
-  mqttClient.setId("MKR1010");
+
+  mqttClient.setId(myHostname);
 
   // You can provide a username and password for authentication
   // mqttClient.setUsernamePassword("username", "password");
 
   // set a will message, used by the broker when the connection dies unexpectantly
   // you must know the size of the message before hand, and it must be set before connecting
-  String willPayload = "oh no! - MKR1010 stopped resonding";
+  
+  String willPayload = "oh no! - MKR1010 stopped responding";
   bool willRetain = true;
   int willQos = 1;
 
@@ -115,7 +126,7 @@ void setup() {
 
     while (1);
   }
-
+  mqttStartTime = millis();
   Serial.println("You're connected to the MQTT broker!");
   Serial.println();
 
@@ -142,9 +153,25 @@ void setup() {
 }
 
 void loop() {
+
   // call poll() regularly to allow the library to receive MQTT messages and
   // send MQTT keep alives which avoids being disconnected by the broker
 
+  if (!mqttClient.connected()){
+    Serial.println("MQTT NOT CONNECTED!");
+    mqttUpTime = millis() - mqttStartTime;
+    Serial.print("MQTT Connection Uptime: ");
+    Serial.print(mqttUpTime);
+    Serial.println(" mSec");
+
+    if (wifiClient.connected() != WL_CONNECTED) {
+      Serial.println("WiFi Disconnected...attempting reconnect");
+      connectToWiFi();  
+    }
+    if (MQTT_connect() == true){  // attempt to reconnect
+      mqttStartTime = millis();  // reset the start time if connected
+    }
+  }
   mqttClient.poll();
 
   if (newMsg == true) {
@@ -209,6 +236,7 @@ void loop() {
     
     count++;
 
+    // toggle the onboard LED on each published message
     if (ledState == LOW) {
       ledState = HIGH;
     } else {
@@ -250,7 +278,8 @@ void onMqttMessage(int messageSize) {
 }
 
 void flash3(String s){
-
+  // used to flash LED3 quickly for 5 seconds when an invalid message is recieved.
+  
   const long i = 200;   // 300 mSec timer
   const long j = 5000;  // 5 second timer
   
@@ -266,7 +295,6 @@ void flash3(String s){
   cMillis = millis();  
   // if glob_flash is true - fast flash at i mSec intervals for j mSec of time
   if (glob_flash && (cMillis - p1Millis >= i)) {
-    Serial.println("flash short: ");
     p1Millis = cMillis;
     // Serial.println(cMillis, p1Millis);
     if (led3State == LOW) {
@@ -283,4 +311,94 @@ void flash3(String s){
   // set the LED with the leState of the variable
   digitalWrite(LED3, led3State);
   }  
+}
+
+void connectToWiFi(){
+
+  // attempt to connect to Wifi network:
+  Serial.print("Attempting to connect to WPA SSID: ");
+  Serial.println(ssid);
+  WiFi.macAddress(mac);
+
+  char str[3] = "";
+  char buf[30];
+
+  // Generate a Hostname for this device based on myHostname plus the last byte of the MAC address
+  strcpy(buf, myHostname);
+  strcat(buf, ":");
+  byte array[1] = {mac[0]};
+  array_to_string(array, 1, str);  // convert the last byte of MAC address to a string
+  strcat(buf, str);
+  Serial.println(buf);
+
+  // attempt to Hostname of this device
+  WiFi.setHostname(buf);
+  while (WiFi.begin(ssid, pass) != WL_CONNECTED) {
+    // failed, retry
+    Serial.print(".");
+    delay(1000);
+  }
+
+  Serial.println("You're connected to the network");
+  Serial.println();
+  // print the firmware version of the WiFi module
+  Serial.print("Firmware Version: ");
+  Serial.println(WiFi.firmwareVersion());
+
+  // print the MAC address beginning with byte 5 to byte 0 
+  Serial.print("MAC: ");
+  for (unsigned int i = 5; i > 0; i--) {
+    Serial.print(mac[i],HEX);
+    Serial.print(":");
+  }
+  Serial.println(mac[0],HEX);
+  // print the SSID you are connected to
+  Serial.print("CONNECTED TO: ");
+  Serial.println(WiFi.SSID());
+  // print the signal strength of the WiFi
+  Serial.print("Signal Strength (RSSI): ");
+  Serial.println(WiFi.RSSI());
+  // print this device's ip address
+  Serial.print("IP: ");
+  ip = WiFi.localIP();
+  Serial.println(ip);
+}
+
+void array_to_string(byte array[], unsigned int len, char buffer[]){
+  // converts a byte array to a hex character string that can be printed
+  // args are:
+  //      byte array to be converted
+  //      length of array
+  //      destination char buffer
+  
+    for (unsigned int i = 0; i < len; i++){
+        byte nib1 = (array[i] >> 4) & 0x0F;  // mask the first nibble of data in element i of array
+        byte nib2 = (array[i] >> 0) & 0x0F;  // mask the second nibble of data in element i of array
+        buffer[i*2+0] = nib1  < 0xA ? '0' + nib1  : 'A' + nib1  - 0xA;  // convert the nibble to the ASCII character '0' to 'F'
+        buffer[i*2+1] = nib2  < 0xA ? '0' + nib2  : 'A' + nib2  - 0xA;
+    }
+    buffer[len*2] = '\0';
+}
+
+// Function to connect and reconnect as necessary to the MQTT server.
+// Should be called in the loop function and it will take care if connecting.
+boolean  MQTT_connect() {
+  int8_t ret;
+
+  // Stop if already connected.
+  if (mqttClient.connected()) {
+    return true;
+  }
+
+  Serial.print("Connecting to MQTT... ");
+
+  while ((ret = mqttClient.connect(broker, port)) != 0) { // connect will return 0 for connected
+       Serial.print("Connect return value: "); 
+       Serial.println(ret);
+       Serial.println("Retrying MQTT connection in 5 seconds...");
+       // mqttClient.disconnect();
+       delay(5000);  // wait 5 seconds
+  }
+  Serial.println("MQTT Connected!");
+  return true;
 }
