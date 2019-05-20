@@ -58,10 +58,14 @@ boolean glob_flash = false;
 unsigned long cMillis = 0;
 unsigned long p1Millis = 0; 
 unsigned long p2Millis = 0;
+unsigned long mqttConnectCount = 0;
+unsigned long mqttCumUpTime = 0;
+unsigned long mqttAvgUpTimeSec = 0;
 unsigned long mqttStartTime = 0;
 unsigned long mqttUpTime = 0;
 int ledState = HIGH; // start with LED off
 int led3State = HIGH; // start with LED off
+boolean statusFlag = true;  // flag to start stop sending status messages
 
 int count = 0;
 
@@ -126,6 +130,7 @@ void setup() {
 
     while (1);
   }
+  mqttConnectCount = 1;  // connection counter
   mqttStartTime = millis();
   Serial.println("You're connected to the MQTT broker!");
   Serial.println();
@@ -159,10 +164,16 @@ void loop() {
 
   if (!mqttClient.connected()){
     Serial.println("MQTT NOT CONNECTED!");
+	mqttConnectCount += 1;  // increment the connection count
     mqttUpTime = millis() - mqttStartTime;
+	mqttCumUpTime += mqttUpTime;
+    mqttAvgUpTimeSec = mqttCumUpTime / (mqttConnectCount - 1) / 1000;
     Serial.print("MQTT Connection Uptime: ");
-    Serial.print(mqttUpTime);
-    Serial.println(" mSec");
+    Serial.print(mqttUpTime/1000);
+    Serial.print(" mSec");
+    Serial.print("  Avg Up Time: ");
+    Serial.print(mqttAvgUpTimeSec);
+    Serial.println(" seconds");
 
     if (wifiClient.connected() != WL_CONNECTED) {
       Serial.println("WiFi Disconnected...attempting reconnect");
@@ -173,7 +184,10 @@ void loop() {
     }
   }
   mqttClient.poll();
-
+  if (mqttConnectCount == 1){ // set the Avg Up Time to the current up time on first connection
+    mqttAvgUpTimeSec = (millis() - mqttStartTime) / 1000; 
+  }
+  
   if (newMsg == true) {
     // check message for a command
     newMsg = false;
@@ -190,9 +204,11 @@ void loop() {
         digitalWrite(LED2, HIGH);    // turn the LED ON by making the voltage LOW
       }
       else if (strcmp(msg, "LED 3 ON") == 0) {
+		statusFlag = false;  
         digitalWrite(LED3, LOW);    // turn the LED ON by making the voltage LOW
       }
       else if (strcmp(msg, "LED 3 OFF") == 0) {
+		statusFlag = true;  
         digitalWrite(LED3, HIGH);    // turn the LED ON by making the voltage LOW
       }
       else {
@@ -216,6 +232,11 @@ void loop() {
     payload += "BarricAid Status: ";
     payload += " ";
     payload += count;
+    payload += "  Restart Count: ";
+    payload += mqttConnectCount - 1;
+    payload += "  Avg Up Time: ";
+    payload += days_hrs_mins_secs(mqttAvgUpTimeSec);
+	
 
     Serial.print("Sending message to topic: ");
     Serial.println(outTopic);
@@ -392,13 +413,75 @@ boolean  MQTT_connect() {
 
   Serial.print("Connecting to MQTT... ");
 
-  while ((ret = mqttClient.connect(broker, port)) != 0) { // connect will return 0 for connected
-       Serial.print("Connect return value: "); 
-       Serial.println(ret);
-       Serial.println("Retrying MQTT connection in 5 seconds...");
-       // mqttClient.disconnect();
-       delay(5000);  // wait 5 seconds
+  if(!mqttClient.connect(broker, port)) {
+    Serial.print("MQTT connection failed! Error code = ");
+    Serial.println(mqttClient.connectError());
+    Serial.println("Retrying MQTT connection in 5 seconds...");
+    // mqttClient.disconnect();
+    // delay(5000);  // wait 5 seconds
   }
   Serial.println("MQTT Connected!");
+
+  // set the message receive callback
+  mqttClient.onMessage(onMqttMessage);
+
+  Serial.print("Subscribing to topic: ");
+  Serial.println(inTopic);
+  Serial.println();
+
+  // subscribe to a topic
+  // the second paramter set's the QoS of the subscription,
+  // the the library supports subscribing at QoS 0, 1, or 2
+  int subscribeQos = 1;
+
+  mqttClient.subscribe(inTopic, subscribeQos);
+
+  // topics can be unsubscribed using:
+  // mqttClient.unsubscribe(inTopic);
+
+  Serial.print("Waiting for messages on topic: ");
+  Serial.println(inTopic);
+  Serial.println();
+  
   return true;
 }
+
+String days_hrs_mins_secs(unsigned int s){
+  // return a string with Days: Hrs:  Min:  Sec: calculated from the unsigned long s seconds argument
+  unsigned int secs = 0;
+  unsigned int t_mins = 0;
+  unsigned int mins = 0;
+  unsigned int t_hrs = 0;
+  unsigned int hrs = 0;
+  unsigned int days = 0;
+  String r = ""; 
+  
+  if (s < 1) {
+      // no complete seconds have elapsed
+      r = "0 Days 0 Hrs 0 Mins 0 Secs";
+      return r;
+  } 
+   
+  secs = s % 60;    // remaining # of seconds
+  
+  if (s > 60) {
+    t_mins = (s - secs) / 60; // total minutes 
+    mins = t_mins % 60;  // remainder of minutes
+  }  
+  if (t_mins > 60) { 
+      t_hrs = (t_mins - mins) / 60; // total hours
+      hrs = t_hrs % 24; // remainder of hours in days
+  }
+  if (t_hrs > 24) {
+      days = (t_hrs - hrs) / 24; // number of days
+  }
+  r += days;
+  r += " Days ";
+  r += hrs;
+  r += " Hrs ";
+  r += mins;
+  r += " Mins ";
+  r += secs;
+  r += " Secs";
+  return r;
+} 
