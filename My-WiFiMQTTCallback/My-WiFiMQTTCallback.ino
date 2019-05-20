@@ -63,6 +63,7 @@ unsigned long mqttCumUpTime = 0;
 unsigned long mqttAvgUpTimeSec = 0;
 unsigned long mqttStartTime = 0;
 unsigned long mqttUpTime = 0;
+unsigned long msgRcvCount = 0;
 int ledState = HIGH; // start with LED off
 int led3State = HIGH; // start with LED off
 boolean statusFlag = true;  // flag to start stop sending status messages
@@ -170,7 +171,7 @@ void loop() {
     mqttAvgUpTimeSec = mqttCumUpTime / (mqttConnectCount - 1) / 1000;
     Serial.print("MQTT Connection Uptime: ");
     Serial.print(mqttUpTime/1000);
-    Serial.print(" mSec");
+    Serial.print(" Sec");
     Serial.print("  Avg Up Time: ");
     Serial.print(mqttAvgUpTimeSec);
     Serial.println(" seconds");
@@ -223,7 +224,7 @@ void loop() {
   
   flash3("");    // flash LED 3 as needed
   
-  if (currentMillis - previousMillis >= interval) {
+  if ((currentMillis - previousMillis >= interval) && statusFlag) {
     // save the last time a message was sent
     previousMillis = currentMillis;
 
@@ -232,10 +233,14 @@ void loop() {
     payload += "BarricAid Status: ";
     payload += " ";
     payload += count;
-    payload += "  Restart Count: ";
+	payload += " Receive Count: ";
+	payload += msgRcvCount;
+    payload += "\nRestart Count: ";
     payload += mqttConnectCount - 1;
     payload += "  Avg Up Time: ";
     payload += days_hrs_mins_secs(mqttAvgUpTimeSec);
+	payload += "\nCurrent Uptime: ";  // add current uptime to message payload
+	payload += days_hrs_mins_secs((millis() - mqttStartTime)/1000); // add current uptime to message payload
 	
 
     Serial.print("Sending message to topic: ");
@@ -292,7 +297,7 @@ void onMqttMessage(int messageSize) {
   msg[i] = '\0';
 
   newMsg = true;
-  
+  msgRcvCount += 1;  // increment the received message counter
   Serial.println(msg); // print the message received
   
   Serial.println();
