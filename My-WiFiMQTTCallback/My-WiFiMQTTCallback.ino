@@ -58,7 +58,6 @@ boolean glob_flash = false;
 unsigned long cMillis = 0;
 unsigned long p1Millis = 0; 
 unsigned long p2Millis = 0;
-unsigned long wifiConnectCount = 0;
 unsigned long mqttConnectCount = 0;
 unsigned long mqttCumUpTime = 0;
 unsigned long mqttAvgUpTimeSec = 0;
@@ -177,41 +176,11 @@ void loop() {
     Serial.print(mqttAvgUpTimeSec);
     Serial.println(" seconds");
 
-    if (!wifiClient.connected()) {
-	  wifiConnectCount += 1; // increment WiFi connection counter	
-	  Serial.print("WiFi Disconnected...");
-	  Serial.print(wifiConnectCount);
-	  Serial.print("...WiFi Status: ");	
-	  
-	  switch (WiFi.status()) {
-		  case WL_CONNECTION_LOST :
-			Serial.print("CONNECTION_LOST");
-			break;
-		  case WL_DISCONNECTED :
-			Serial.print("DISONNECTED");
-			break;
-		  case WL_CONNECTED :
-			Serial.print("CONNECTED");
-			break;
-		  case WL_NO_SHIELD :
-			Serial.print("NO_SHIELD");
-			break;
-		  case WL_NO_SSID_AVAIL :
-			Serial.print("NO_SSID_AVAIL");
-			break;
-		  case WL_CONNECT_FAILED :
-			Serial.print("CONNECT_FAILED");
-			break;
-		  default :
-			// no matches to the above - must be one 
-			//   WL_AP_CONNECTED, WL_AP_LISTENING, WL_IDLE_STATUS, WL_SCAN_COMPLETED
-			Serial.println("One of 4 other status returns");
-	  }
-	  
-      Serial.println("...attempting reconnect");
+    if (wifiClient.connected() != WL_CONNECTED) {
+      Serial.println("WiFi Disconnected...attempting reconnect");
       connectToWiFi();  
     }
-    if (MQTT_connect() == true){  // attempt to reconnect to MQTT broker
+    if (MQTT_connect() == true){  // attempt to reconnect
       mqttStartTime = millis();  // reset the start time if connected
     }
   }
