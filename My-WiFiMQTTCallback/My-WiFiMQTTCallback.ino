@@ -44,13 +44,16 @@ const int d1 = 2000; // first flash long on time
 const int d2 = 1000; // off time
 const int d3 = 500;  // second flash short on time
 
-const char broker[] =  "192.168.1.250";   //  broker host is NR4O-pi1 - otiginal assignment ="test.mosquitto.org"
+// const char broker[] =  "192.168.1.250";   //  broker host is NR4O-pi1:wlan0 - otiginal assignment ="test.mosquitto.org"
+const char broker[] =  "192.168.1.71";   //  broker host is NR4O-pi1:eth0 - otiginal assignment ="test.mosquitto.org"
 int        port     = 1883;
 const char willTopic[] = "BarricAid/will";
 const char inTopic[]   = "BarricAid/test";
 const char outTopic[]  = "BarricAid/out";
 char msg[256] = "";  //message buffer
 boolean newMsg = false;
+int err1 = 0;
+int ret1 = 0;
 
 const long interval = 10000;
 unsigned long previousMillis = 0;
@@ -114,6 +117,11 @@ void setup() {
   mqttClient.begin(broker, port, wifiClient);
   mqttClient.onMessage(messageReceived);
 
+  int keepAlive = 5; // # of seconds
+  bool cleanSession = true;
+  int timeout = 5000; // # of milliseconds
+  mqttClient.setOptions(keepAlive, cleanSession, timeout);
+
   connect(); // function to connect to MQTT broker
 /*
   if (!mqttClient.connect(broker, port)) {
@@ -156,7 +164,17 @@ void loop() {
   // send MQTT keep alives which avoids being disconnected by the broker
 
   if (!mqttClient.connected()){
-    Serial.println("MQTT NOT CONNECTED!");
+    Serial.print("MQTT NOT CONNECTED!...");
+    // print some error information
+    Serial.print("lastError= ");
+    Serial.print(mqttClient.lastError());
+    Serial.print(" err1= ");
+    Serial.print(err1);
+    Serial.print("  returnCode= ");
+    Serial.println(mqttClient.returnCode());
+    Serial.print(" ret1= ");
+    Serial.println(ret1);
+
 	  mqttConnectCount += 1;  // increment the connection count
     mqttUpTime = millis() - mqttStartTime;
 	  mqttCumUpTime += mqttUpTime;
@@ -201,6 +219,9 @@ void loop() {
   }
 
   mqttClient.loop();  // check for MQTT messages
+
+  err1 = mqttClient.lastError();
+  ret1 = mqttClient.returnCode();
 
   if (mqttConnectCount == 1){ // set the Avg Up Time to the current up time on first connection
     mqttAvgUpTimeSec = (millis() - mqttStartTime) / 1000;
@@ -271,6 +292,11 @@ void loop() {
     bool dup = false;
 
     mqttClient.publish(outTopic, payload, retained, qos);
+
+    Serial.print("lastError= ");
+    Serial.print(mqttClient.lastError());
+    Serial.print("  returnCode= ");
+    Serial.println(mqttClient.returnCode());
 
     Serial.println();
 
@@ -502,20 +528,19 @@ String days_hrs_mins_secs(unsigned int s){
 }
 
 void connect() {
-  Serial.print("checking wifi...");
+  Serial.print("checking wifi... ");
   while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
+    Serial.print("*");
     delay(5000);
   }
 
-  Serial.print("\nconnecting...");
+  Serial.print("\nconnecting MQTT client... ");
   while (!mqttClient.connect("arduino", "", "")) {
-    Serial.print(".");
+    Serial.print("*");
     delay(5000);
   }
 
-  Serial.println("\nconnected!");
-
+  Serial.println("connected!");
 }
 
 void messageReceived(String &topic, String &payload) {
