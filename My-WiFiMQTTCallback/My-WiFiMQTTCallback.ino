@@ -418,19 +418,22 @@ void connectToWiFi(){
   strcat(buf, str);
   Serial.println(buf);
 
-  // attempt to Hostname of this device
-  WiFi.setHostname(buf);
-  while (WiFi.begin(ssid, pass) != WL_CONNECTED) {
+  // attempt to set Hostname of this device
+  // WiFi.setHostname(buf); // not valid for ESP8266WiFi
+  WiFi.mode(WIFI_STA);  // needed for ESP8266WiFi
+  WiFi.begin(ssid, pass);
+
+  while (WiFi.status() != WL_CONNECTED) {
     // failed, retry
-    Serial.print(".");
-    delay(1000);
+    Serial.print("*");
+    delay(5000);
   }
 
   Serial.println("You're connected to the network");
   Serial.println();
   // print the firmware version of the WiFi module
-  Serial.print("Firmware Version: ");
-  Serial.println(WiFi.firmwareVersion());
+  // Serial.print("Firmware Version: ");
+  // Serial.println(WiFi.firmwareVersion());  // not valid for ESP8266WiFi
 
   // print the MAC address beginning with byte 5 to byte 0
   Serial.print("MAC: ");
