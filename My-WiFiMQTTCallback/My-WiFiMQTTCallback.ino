@@ -15,6 +15,10 @@
   This example code is in the public domain.
 */
 
+// use this compiler directive for ESP8266 boards
+// otherwise comment it out
+#define ESP8266
+
 #include <ArduinoMqttClient.h>
 //#include <WiFiNINA.h> // for MKR1010 boards
 //#include <WiFi101.h>  // for MKR 1000 boards
@@ -24,9 +28,13 @@
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
 char ssid[] = SECRET_SSID;        // your network SSID (name)
 char pass[] = SECRET_PASS;    // your network password (use for WPA, or use as key for WEP)
-const char *myHostname = "NodeMCU";  // set the hostname of this device
+
 byte mac[6];  // the MAC address of your WiFi Module
 IPAddress ip; // the IP address of this board
+IPAddress subnetMask; // subnet mask
+IPAddress gatewayIP; // IP address of the gateway
+String hostname; // default hostname of this module
+const char *myHostname = "NodeMCU";  // set the mqtt hostname of this device
 
 // To connect with SSL/TLS:
 // 1) Change WiFiClient to WiFiSSLClient.
@@ -437,7 +445,14 @@ void connectToWiFi(){
 
   // print the MAC address beginning with byte 5 to byte 0
   Serial.print("MAC: ");
+
+#ifdef ESP8266  
+// swap order of bytes for ESP8266 modules
+  for (unsigned int i = 0; i < 6; i++) {
+#else
+// use this ordering for all others like MKR1010
   for (unsigned int i = 5; i > 0; i--) {
+#endif
     Serial.print(mac[i],HEX);
     Serial.print(":");
   }
@@ -449,9 +464,17 @@ void connectToWiFi(){
   Serial.print("Signal Strength (RSSI): ");
   Serial.println(WiFi.RSSI());
   // print this device's ip address
-  Serial.print("IP: ");
+  hostname = WiFi.hostname();  // get the current Hostname
+  Serial.printf("Hostname: %s  ", hostname.c_str());
   ip = WiFi.localIP();
+  Serial.print("IP: ");
   Serial.println(ip);
+  subnetMask = WiFi.subnetMask(); // get current subnet mask
+  Serial.print("Subnet Mask: ");
+  Serial.print(subnetMask);
+  gatewayIP = WiFi.gatewayIP();  // get current gateway IP
+  Serial.print("  Gateway: ");
+  Serial.println(gatewayIP);
 }
 
 void array_to_string(byte array[], unsigned int len, char buffer[]){
