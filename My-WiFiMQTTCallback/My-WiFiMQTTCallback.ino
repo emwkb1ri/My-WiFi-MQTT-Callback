@@ -533,15 +533,15 @@ String days_hrs_mins_secs(unsigned int s){
 
   secs = s % 60;    // remaining # of seconds
 
-  if (s > 60) {
+  if (s >= 60) {
     t_mins = (s - secs) / 60; // total minutes
     mins = t_mins % 60;  // remainder of minutes
   }
-  if (t_mins > 60) {
+  if (t_mins >= 60) {
       t_hrs = (t_mins - mins) / 60; // total hours
       hrs = t_hrs % 24; // remainder of hours in days
   }
-  if (t_hrs > 24) {
+  if (t_hrs >= 24) {
       days = (t_hrs - hrs) / 24; // number of days
   }
   r += days;
