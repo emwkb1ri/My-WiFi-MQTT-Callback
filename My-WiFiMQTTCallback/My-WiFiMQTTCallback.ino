@@ -239,8 +239,9 @@ void loop() {
 
     if (!wifiClient.connected()) {
 	  wifiConnectCount += 1; // increment WiFi connection counter
-	  Serial.print("WiFi Disconnected...");
-	  Serial.print(wifiConnectCount);
+	  Serial.print("wifiClient Disconnected...");
+    Serial.println("Value: ");
+	  Serial.print(wifiClient.connected());
 	  Serial.print("...WiFi Status: ");
 
   	  switch (WiFi.status()) {
