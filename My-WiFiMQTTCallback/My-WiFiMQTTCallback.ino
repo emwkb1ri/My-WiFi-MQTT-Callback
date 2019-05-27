@@ -223,7 +223,9 @@ void loop() {
   // send MQTT keep alives which avoids being disconnected by the broker
 
   if (!mqttClient.connected()){
-    Serial.println("MQTT NOT CONNECTED!");
+    Serial.print("MQTT NOT CONNECTED!...");
+    Serial.print("Error Code: ");
+    Serial.println(mqttClient.connectError());
 	  mqttConnectCount += 1;  // increment the connection count
     mqttUpTime = millis() - mqttStartTime;
 	  mqttCumUpTime += mqttUpTime;
@@ -536,6 +538,7 @@ boolean  MQTT_connect() {
 
   // Stop if already connected.
   if (mqttClient.connected()) {
+    Serial.println("MQTT already connected")
     return true;
   }
 
