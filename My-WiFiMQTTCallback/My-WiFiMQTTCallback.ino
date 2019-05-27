@@ -15,14 +15,13 @@
   This example code is in the public domain.
 */
 
-// use this compiler directive for ESP8266 boards
-// otherwise comment it out
-#define ESP8266
-
 #include <ArduinoMqttClient.h>
 //#include <WiFiNINA.h> // for MKR1010 boards
 //#include <WiFi101.h>  // for MKR 1000 boards
 #include <ESP8266WiFi.h> // for NodeMCU and ESP8266 ethernet modules
+// use this compiler directive for ESP8266 boards
+// otherwise comment it out
+#define ESP8266
 
 #include "arduino_secrets.h"
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
@@ -34,7 +33,12 @@ IPAddress ip; // the IP address of this board
 IPAddress subnetMask; // subnet mask
 IPAddress gatewayIP; // IP address of the gateway
 String hostname; // default hostname of this module
-const char *myHostname = "NodeMCU";  // set the mqtt hostname of this device
+
+#ifdef ESP8266
+  const char *myHostname = "NodeMCU";  // set the mqtt hostname of this device
+#else
+  const char *myHostname = "MKR1010";
+#endif
 
 // To connect with SSL/TLS:
 // 1) Change WiFiClient to WiFiSSLClient.
@@ -42,23 +46,24 @@ const char *myHostname = "NodeMCU";  // set the mqtt hostname of this device
 // 3) Change broker value to a server with a known SSL/TLS root certificate
 //    flashed in the WiFi module.
 
-/*
-// initial variables for pin IO on my MKR1010 protoboard
-const int LED = 6; // built in board LED
-const int LED1 = 0;
-const int LED2 = 1;
-const int LED3 = 2;
-*/
-// initial variables for pin IO on my NodeMCU protoboard
-const int LED = 6; // built in board LED
-const int LED1 = 14; // GPIO 14
-const int LED2 = 13; // GPIO 13
-const int LED3 = 5; // GPIO 5
-const int LED4 = 15; // GPIO 15
-const int LED5 = 10; // GPIO 10
-const int LED6 = 4; // GPIO 4
-const int LED7 = 16; // GPIO 16
-const int LED8 = 12; // GPIO 12
+#ifdef ESP8266
+  // initial variables for pin IO on my NodeMCU protoboard
+  const int LED = 12; // built in board LED (use LED8 pin for now)
+  const int LED1 = 14; // GPIO 14
+  const int LED2 = 13; // GPIO 13
+  const int LED3 = 5; // GPIO 5
+  const int LED4 = 15; // GPIO 15
+  const int LED5 = 10; // GPIO 10
+  const int LED6 = 4; // GPIO 4
+  const int LED7 = 16; // GPIO 16
+  const int LED8 = 12; // GPIO 12
+#else
+  // initial variables for pin IO on my MKR1010 protoboard
+  const int LED = 6; // built in board LED
+  const int LED1 = 0;
+  const int LED2 = 1;
+  const int LED3 = 2;
+#endif
 
 const int d1 = 2000; // first flash long on time
 const int d2 = 1000; // off time
@@ -428,7 +433,12 @@ void connectToWiFi(){
 
   // attempt to set Hostname of this device
   // WiFi.setHostname(buf); // not valid for ESP8266WiFi
+
+  #ifdef ESP8266
   WiFi.mode(WIFI_STA);  // needed for ESP8266WiFi
+  #endif
+
+  // initialize the WiFi library network settings
   WiFi.begin(ssid, pass);
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -446,7 +456,7 @@ void connectToWiFi(){
   // print the MAC address beginning with byte 5 to byte 0
   Serial.print("MAC: ");
 
-#ifdef ESP8266  
+#ifdef ESP8266
 // swap order of bytes for ESP8266 modules
   for (unsigned int i = 0; i < 6; i++) {
 #else
