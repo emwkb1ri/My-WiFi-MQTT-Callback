@@ -221,10 +221,12 @@ void loop() {
 
   // call poll() regularly to allow the library to receive MQTT messages and
   // send MQTT keep alives which avoids being disconnected by the broker
-
-  if (!mqttClient.connected()){
+  int mqttClientStatus = mqttClient.connected();
+  if (!mqttClientStatus) {
     Serial.print("MQTT NOT CONNECTED!...");
-    Serial.print("Error Code: ");
+    Serial.print("Status: ");
+    Serial.print(mqttClientStatus);
+    Serial.print("...Error Code: ");
     Serial.println(mqttClient.connectError());
 	  mqttConnectCount += 1;  // increment the connection count
     mqttUpTime = millis() - mqttStartTime;
@@ -237,11 +239,12 @@ void loop() {
     Serial.print(mqttAvgUpTimeSec);
     Serial.println(" seconds");
 
-    if (!wifiClient.connected()) {
+    int clientStatus = wifiClient.connected();
+    if (!clientStatus) {
 	  wifiConnectCount += 1; // increment WiFi connection counter
 	  Serial.print("wifiClient Disconnected...");
     Serial.println("Value: ");
-	  Serial.print(wifiClient.connected());
+	  Serial.print(clientStatus);
 	  Serial.print("...WiFi Status: ");
 
   	  switch (WiFi.status()) {
