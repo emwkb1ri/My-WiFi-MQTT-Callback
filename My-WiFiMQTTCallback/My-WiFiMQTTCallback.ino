@@ -15,13 +15,19 @@
   This example code is in the public domain.
 */
 
+// **** use this compiler directive for ESP8266 boards
+// **** otherwise comment it out
+
+// #define ESP8266
+
 #include <ArduinoMqttClient.h>
-//#include <WiFiNINA.h> // for MKR1010 boards
-//#include <WiFi101.h>  // for MKR 1000 boards
-#include <ESP8266WiFi.h> // for NodeMCU and ESP8266 ethernet modules
-// use this compiler directive for ESP8266 boards
-// otherwise comment it out
-#define ESP8266
+
+#ifdef ESP8266
+  #include <ESP8266WiFi.h> // for NodeMCU and ESP8266 ethernet modules
+#else
+  #include <WiFiNINA.h> // for MKR1010 boards
+  //#include <WiFi101.h>  // for MKR 1000 boards
+#endif
 
 #include "arduino_secrets.h"
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
@@ -102,6 +108,8 @@ int count = 0;
 void setup() {
   // initialize digital pins as an output.
 
+#ifdef ESP8266
+  // difine 8 LEDs on NodeMCU protoboard
   pinMode(LED1, OUTPUT);
   pinMode(LED2, OUTPUT);
   pinMode(LED3, OUTPUT);
@@ -110,16 +118,27 @@ void setup() {
   pinMode(LED6, OUTPUT);
   pinMode(LED7, OUTPUT);
   pinMode(LED8, OUTPUT);
+#else
+  // define 3 LEDs on MKR1010 protoboard
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
+  pinMode(LED3, OUTPUT);
+#endif
 
+#ifdef ESP8266
   digitalWrite(LED1, HIGH);    // turn all the LEDs off to start HIGH = LED OFF
   digitalWrite(LED2, HIGH);
   digitalWrite(LED3, HIGH);
-  digitalWrite(LED4, HIGH);    // turn all the LEDs off to start HIGH = LED OFF
+  digitalWrite(LED4, HIGH);
   digitalWrite(LED5, HIGH);
   digitalWrite(LED6, HIGH);
-  digitalWrite(LED7, HIGH);    // turn all the LEDs off to start HIGH = LED OFF
+  digitalWrite(LED7, HIGH);
   digitalWrite(LED8, HIGH);
-
+#else
+  digitalWrite(LED1, HIGH);    // turn all the LEDs off to start HIGH = LED OFF
+  digitalWrite(LED2, HIGH);
+  digitalWrite(LED3, HIGH);
+#endif
 
   //Initialize serial and wait for port to open:
   Serial.begin(9600);
@@ -463,6 +482,7 @@ void connectToWiFi(){
 // use this ordering for all others like MKR1010
   for (unsigned int i = 5; i > 0; i--) {
 #endif
+
     Serial.print(mac[i],HEX);
     Serial.print(":");
   }
@@ -473,9 +493,15 @@ void connectToWiFi(){
   // print the signal strength of the WiFi
   Serial.print("Signal Strength (RSSI): ");
   Serial.println(WiFi.RSSI());
-  // print this device's ip address
+
+#ifdef ESP8266
+  // hostname function only available on ESP8266WiFi
   hostname = WiFi.hostname();  // get the current Hostname
-  Serial.printf("Hostname: %s  ", hostname.c_str());
+  Serial.print("Hostname: ");
+  Serial.println(hostname);
+#endif
+
+  // print this device's ip address
   ip = WiFi.localIP();
   Serial.print("IP: ");
   Serial.println(ip);
