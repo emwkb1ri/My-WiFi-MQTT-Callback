@@ -531,14 +531,15 @@ void array_to_string(byte array[], unsigned int len, char buffer[]){
     buffer[len*2] = '\0';
 }
 
-// Function to connect and reconnect as necessary to the MQTT server.
-// Should be called in the loop function and it will take care if connecting.
 boolean  MQTT_connect() {
+  // Function to connect and reconnect as necessary to the MQTT server.
+  // Should be called in the loop function and it will take care ff connecting.
+
   int8_t ret;
 
   // Stop if already connected.
   if (mqttClient.connected()) {
-    Serial.println("MQTT already connected")
+    Serial.println("MQTT already connected");
     return true;
   }
 
