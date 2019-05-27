@@ -85,6 +85,8 @@ const char inTopic[]   = "BarricAid/test";
 const char outTopic[]  = "BarricAid/out";
 char msg[128] = "";  //message buffer
 boolean newMsg = false;
+const unsigned long keepAlive = 360;  // seconds default = 60
+const unsigned long timeout = 30;  // seconds default = 30
 
 const long interval = 10000;
 unsigned long previousMillis = 0;
@@ -166,6 +168,9 @@ void setup() {
   // Each client must have a unique client ID
 
   mqttClient.setId(myHostname);
+  // set the client keep alive and timeout intervals
+  mqttClient.setKeepAliveInterval(keepAlive);
+  mqttClient.setConnectionTimeout(timeout);
 
   // You can provide a username and password for authentication
   // mqttClient.setUsernamePassword("username", "password");
