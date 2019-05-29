@@ -85,8 +85,8 @@ const char inTopic[]   = "BarricAid/test";
 const char outTopic[]  = "BarricAid/out";
 char msg[128] = "";  //message buffer
 boolean newMsg = false;
-const unsigned long keepAlive = 360;  // seconds default = 60
-const unsigned long timeout = 30;  // seconds default = 30
+const unsigned long keepAlive = 30 * 1000;  // milliseconds default = 60 * 1000L
+const unsigned long timeout = 20 * 1000;  // milliseconds default = 30 * 1000L
 
 const long interval = 10000;
 unsigned long previousMillis = 0;
@@ -178,7 +178,9 @@ void setup() {
   // set a will message, used by the broker when the connection dies unexpectantly
   // you must know the size of the message before hand, and it must be set before connecting
 
-  String willPayload = "oh no! - NodeMCU stopped responding";
+  String willPayload = "oh no! - ";
+  willPayload.concat(myHostname);
+  willPayload += " stopped responding";
   bool willRetain = true;
   int willQos = 1;
 
@@ -228,8 +230,10 @@ void loop() {
   // send MQTT keep alives which avoids being disconnected by the broker
   int mqttClientStatus = mqttClient.connected();
   if (!mqttClientStatus) {
-    Serial.print("MQTT NOT CONNECTED!...");
-    Serial.print("Status: ");
+    Serial.print(millis());
+    Serial.print(" MQTT NOT CONNECTED!...");
+    Serial.print(millis());
+    Serial.print(" Status: ");
     Serial.print(mqttClientStatus);
     Serial.print("...Error Code: ");
     Serial.println(mqttClient.connectError());
@@ -238,17 +242,17 @@ void loop() {
 	  mqttCumUpTime += mqttUpTime;
     mqttAvgUpTimeSec = mqttCumUpTime / (mqttConnectCount - 1) / 1000;
     Serial.print("MQTT Connection Uptime: ");
-    Serial.print(mqttUpTime/1000);
+    Serial.print(days_hrs_mins_secs(mqttUpTime/1000));
     Serial.print(" Sec");
     Serial.print("  Avg Up Time: ");
-    Serial.print(mqttAvgUpTimeSec);
+    Serial.print(days_hrs_mins_secs(mqttAvgUpTimeSec));
     Serial.println(" seconds");
 
     int clientStatus = wifiClient.connected();
     if (!clientStatus) {
 	  wifiConnectCount += 1; // increment WiFi connection counter
 	  Serial.print("wifiClient Disconnected...");
-    Serial.println("Value: ");
+    Serial.print("Value: ");
 	  Serial.print(clientStatus);
 	  Serial.print("...WiFi Status: ");
 
@@ -552,7 +556,7 @@ boolean  MQTT_connect() {
     return true;
   }
 
-  Serial.print("Connecting to MQTT broker... ");
+  Serial.println("Connecting to MQTT broker... ");
 
   while(!mqttClient.connect(broker, port)) {
     Serial.print("MQTT connection failed! Error code = ");
