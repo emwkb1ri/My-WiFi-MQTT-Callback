@@ -1,5 +1,5 @@
 /*
-  ArduinoMqttClient - WiFi Advanced Callback
+  mqttPubSubClient - WiFi Callback
 
   This example connects to a MQTT broker and subscribes to a single topic,
   it also publishes a message to another topic every 10 seconds.
@@ -15,13 +15,15 @@
   This example code is in the public domain.
 */
 
+#define MQTT_MAX_PACKET_SIZE 256
+#define MQTT_KEEPALIVE 15
+#define MQTT_SOCKET_TIMEOUT 15
+#include <PubSubClient.h>
+
 // **** use this compiler directive for ESP8266 boards
 // **** otherwise comment it out
 
 // #define ESP8266
-
-#include <ArduinoMqttClient.h>
-
 #ifdef ESP8266
   #include <ESP8266WiFi.h> // for NodeMCU and ESP8266 ethernet modules
 #else
@@ -76,17 +78,20 @@ const int d2 = 1000; // off time
 const int d3 = 500;  // second flash short on time
 
 WiFiClient wifiClient;
-MqttClient mqttClient(wifiClient);
+// MqttClient mqttClient(wifiClient);
+PubSubClient mqttClient(wifiClient);
 
 const char broker[] =  "192.168.1.250";   //  broker host is NR4O-pi1 - otiginal assignment ="test.mosquitto.org"
 int        port     = 1883;
-const char willTopic[] = "BarricAid/will";
-const char inTopic[]   = "BarricAid/test";
-const char outTopic[]  = "BarricAid/out";
+const char username[] = "";  // set the broker username
+const char password[] = "";  // set the broker password
+const char willTopic[] = "BarricAid/will";  // set the lastWill topic
+const char inTopic[]   = "BarricAid/test";  // set the inbound subscribe topic
+const char outTopic[]  = "BarricAid/out";  // set the outbound publish topic
 char msg[128] = "";  //message buffer
-boolean newMsg = false;
-const unsigned long keepAlive = 30 * 1000;  // milliseconds default = 60 * 1000L
-const unsigned long timeout = 20 * 1000;  // milliseconds default = 30 * 1000L
+boolean newMsg = false;  // flag to indicate a new inbound message was read in the callback function
+const unsigned long keepAlive = 60 * 1000;  // milliseconds default = 60 * 1000L
+const unsigned long timeout = 30 * 1000;  // milliseconds default = 30 * 1000L
 
 const long interval = 10000;
 unsigned long previousMillis = 0;
@@ -150,93 +155,23 @@ void setup() {
 
   // attempt to connect to WiFi network
   connectToWiFi();
-/*
-  // attempt to connect to Wifi network:
-  Serial.print("Attempting to connect to WPA SSID: ");
-  Serial.println(ssid);
-  while (WiFi.begin(ssid, pass) != WL_CONNECTED) {
-    // failed, retry
-    Serial.print(".");
-    delay(5000);
-  }
-
-  Serial.println("You're connected to the network");
-  Serial.println();
-*/
-
-  // You can provide a unique client ID, if not set the library uses Arduin-millis()
-  // Each client must have a unique client ID
-
-  mqttClient.setId(myHostname);
-  // set the client keep alive and timeout intervals
-  mqttClient.setKeepAliveInterval(keepAlive);
-  mqttClient.setConnectionTimeout(timeout);
-
-  // You can provide a username and password for authentication
-  // mqttClient.setUsernamePassword("username", "password");
-
-  // set a will message, used by the broker when the connection dies unexpectantly
-  // you must know the size of the message before hand, and it must be set before connecting
-
-  String willPayload = "oh no! - ";
-  willPayload.concat(myHostname);
-  willPayload += " stopped responding";
-  bool willRetain = true;
-  int willQos = 1;
-
-  mqttClient.beginWill(willTopic, willPayload.length(), willRetain, willQos);
-  mqttClient.print(willPayload);
-  mqttClient.endWill();
-
-  Serial.print("Attempting to connect to the MQTT broker: ");
-  Serial.println(broker);
-
-  if (!mqttClient.connect(broker, port)) {
-    Serial.print("MQTT connection failed! Error code = ");
-    Serial.println(mqttClient.connectError());
-
-    while (1);
-  }
-  mqttConnectCount = 1;  // connection counter
-  mqttStartTime = millis();
-  Serial.println("You're connected to the MQTT broker!");
-  Serial.println();
-
-  // set the message receive callback
-  mqttClient.onMessage(onMqttMessage);
-
-  Serial.print("Subscribing to topic: ");
-  Serial.println(inTopic);
-  Serial.println();
-
-  // subscribe to a topic
-  // the second paramter set's the QoS of the subscription,
-  // the the library supports subscribing at QoS 0, 1, or 2
-  int subscribeQos = 1;
-
-  mqttClient.subscribe(inTopic, subscribeQos);
-
-  // topics can be unsubscribed using:
-  // mqttClient.unsubscribe(inTopic);
-
-  Serial.print("Waiting for messages on topic: ");
-  Serial.println(inTopic);
-  Serial.println();
+  // initialize and connect to MQTT broker
+  connectMQTT();
 }
 
 void loop() {
 
   // call poll() regularly to allow the library to receive MQTT messages and
   // send MQTT keep alives which avoids being disconnected by the broker
-  int mqttClientStatus = mqttClient.connected();
-  if (!mqttClientStatus) {
+  int mqttClientState = mqttClient.state();
+  if (!mqttClient.connected()) {
     Serial.print(millis());
     Serial.print(" MQTT NOT CONNECTED!...");
     Serial.print(millis());
     Serial.print(" Status: ");
-    Serial.print(mqttClientStatus);
+    Serial.print(mqttClient.connected());
     Serial.print("...Error Code: ");
-    Serial.println(mqttClient.connectError());
+    Serial.println(mqttClientState);
 	  mqttConnectCount += 1;  // increment the connection count
     mqttUpTime = millis() - mqttStartTime;
 	  mqttCumUpTime += mqttUpTime;
@@ -288,18 +223,21 @@ void loop() {
   	  }
     }
     Serial.println();
-    if (MQTT_connect() == true){  // attempt to reconnect to MQTT broker
+    if (connectMQTT()) {  // attempt to reconnect to MQTT broker
       mqttStartTime = millis();  // reset the start time if connected
     }
   }
-  mqttClient.poll();
-  if (mqttConnectCount == 1){ // set the Avg Up Time to the current up time on first connection
+
+  mqttClient.loop();  // check the mqtt PubSubClient interface for messages
+
+  if (mqttConnectCount == 1) { // set the Avg Up Time to the current up time on first connection
     mqttAvgUpTimeSec = (millis() - mqttStartTime) / 1000;
   }
 
   if (newMsg == true) {
     // check message for a command
     newMsg = false;
+    Serial.println(msg);
     if (strcmp(msg,"LED 1 ON") == 0) {
         digitalWrite(LED1, LOW);    // turn the LED ON by making the voltage LOW
       }
@@ -350,7 +288,6 @@ void loop() {
 	  payload += "\nCurrent Uptime: ";  // add current uptime to message payload
 	  payload += days_hrs_mins_secs((millis() - mqttStartTime)/1000); // add current uptime to message payload
 
-
     Serial.print("Sending message to topic: ");
     Serial.println(outTopic);
     Serial.println(payload);
@@ -358,13 +295,11 @@ void loop() {
     // send message, the Print interface can be used to set the message contents
     // in this case we know the size ahead of time, so the message payload can be streamed
 
-    bool retained = false;
-    int qos = 1;
+    unsigned int retained = 0;
+    unsigned int qos = 1;
     bool dup = false;
 
-    mqttClient.beginMessage(outTopic, payload.length(), retained, qos, dup);
-    mqttClient.print(payload);
-    mqttClient.endMessage();
+    mqttClient.publish(outTopic, payload.c_str(), retained);
 
     Serial.println();
 
@@ -380,38 +315,38 @@ void loop() {
   }
 }
 
-void onMqttMessage(int messageSize) {
+//--------------Callback function for messages------------------------
+void onMqttMessage(char* topic, byte* payload, unsigned int msgSize) {
   // we received a message, print out the topic and contents
   // and make it available in the buffer called 'msg'
   Serial.print("Received a message with topic '");
-  Serial.print(mqttClient.messageTopic());
-  Serial.print("', duplicate = ");
-  Serial.print(mqttClient.messageDup() ? "true" : "false");
-  Serial.print(", QoS = ");
-  Serial.print(mqttClient.messageQoS());
-  Serial.print(", retained = ");
-  Serial.print(mqttClient.messageRetain() ? "true" : "false");
+  Serial.print(topic);
+  // Serial.print("', duplicate = ");
+  // Serial.print(mqttClient.messageDup() ? "true" : "false");
+  // Serial.print(", QoS = ");
+  // Serial.print(mqttClient.messageQoS());
+  // Serial.print(", retained = ");
+  // Serial.print(mqttClient.messageRetain() ? "true" : "false");
   Serial.print("', length ");
-  Serial.print(messageSize);
+  Serial.print(msgSize);
   Serial.println(" bytes:");
 
   int i = 0;  // character array interator
 
   // use the stream interface to read the message data
-  while (mqttClient.available()) {
-    msg[i] = mqttClient.read();  // read each byte into buffer
-    i = i + 1;
+  for (int i =0 ; i < msgSize; i++) {
+    msg[i] = payload[i];
+    Serial.print((char)payload[i]);
   }
-  msg[i] = '\0';
-
+  msg[msgSize] = '\0';
   newMsg = true;
   msgRcvCount += 1;  // increment the received message counter
-  Serial.println(msg); // print the message received
 
   Serial.println();
 }
 
-void flash3(String s){
+//--------------Flash LED3 for 5 seconds----------------------
+void flash3(String s) {
   // used to flash LED3 quickly for 5 seconds when an invalid message is recieved.
 
   const long i = 200;   // 300 mSec timer
@@ -447,6 +382,7 @@ void flash3(String s){
   }
 }
 
+//---------------WiFi Connect Function --------------------
 void connectToWiFi(){
 
   // attempt to connect to Wifi network:
@@ -544,7 +480,8 @@ void array_to_string(byte array[], unsigned int len, char buffer[]){
     buffer[len*2] = '\0';
 }
 
-boolean  MQTT_connect() {
+//--------------------MQTT Client Connect Function----------------------------
+boolean  connectMQTT() {
   // Function to connect and reconnect as necessary to the MQTT server.
   // Should be called in the loop function and it will take care ff connecting.
 
@@ -556,19 +493,38 @@ boolean  MQTT_connect() {
     return true;
   }
 
+  // set broker and port
+  mqttClient.setServer(broker, port);
+
+  // set the message receive callback
+  mqttClient.setCallback(onMqttMessage);
+
+  // set a will message, used by the broker when the connection dies unexpectantly
+  // you must know the size of the message before hand, and it must be set before connecting
+
+  String willPayload = "oh no! - ";
+  willPayload.concat(myHostname);
+  willPayload += " stopped responding";
+  int willQoS = 1;
+  bool willRetain = true;
+  bool cleanSession = false;  // maintain session on server
+
   Serial.println("Connecting to MQTT broker... ");
 
-  while(!mqttClient.connect(broker, port)) {
+  while(!mqttClient.connect(myHostname, username, password, willTopic, willQoS, willRetain, willPayload.c_str(), cleanSession)) {
     Serial.print("MQTT connection failed! Error code = ");
-    Serial.println(mqttClient.connectError());
+    Serial.println(mqttClient.state());
     Serial.println("Retrying MQTT connection in 5 seconds...");
     // mqttClient.disconnect();
     delay(5000);  // wait 5 seconds
   }
-  Serial.println("MQTT Connected!");
 
-  // set the message receive callback
-  mqttClient.onMessage(onMqttMessage);
+  mqttConnectCount = 1;  // connection counter
+  mqttStartTime = millis();
+  Serial.println("You're connected to the MQTT broker!");
+
+  // publish a connected message
+  mqttClient.publish(outTopic, "***MKR1010 Client Connected***");
 
   Serial.print("Subscribing to topic: ");
   Serial.println(inTopic);
@@ -591,7 +547,9 @@ boolean  MQTT_connect() {
   return true;
 }
 
-String days_hrs_mins_secs(unsigned int s){
+//---------Convert seconds to Days, Hours, Minutes, Seconds-----------------------
+
+String days_hrs_mins_secs(unsigned int s) {
   // return a string with Days: Hrs:  Min:  Sec: calculated from the unsigned long s seconds argument
   unsigned int secs = 0;
   unsigned int t_mins = 0;
