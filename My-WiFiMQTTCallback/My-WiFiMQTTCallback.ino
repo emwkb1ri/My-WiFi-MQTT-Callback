@@ -100,7 +100,7 @@ unsigned long cMillis = 0;
 unsigned long p1Millis = 0;
 unsigned long p2Millis = 0;
 unsigned long wifiConnectCount = 0;
-unsigned long mqttConnectCount = 0;
+unsigned long mqttConnectCount = 1;
 unsigned long mqttCumUpTime = 0;
 unsigned long mqttAvgUpTimeSec = 0;
 unsigned long mqttStartTime = 0;
@@ -167,12 +167,12 @@ void loop() {
   if (!mqttClient.connected()) {
     Serial.print(millis());
     Serial.print(" MQTT NOT CONNECTED!...");
-    Serial.print(millis());
     Serial.print(" Status: ");
     Serial.print(mqttClient.connected());
     Serial.print("...Error Code: ");
     Serial.println(mqttClientState);
 	  mqttConnectCount += 1;  // increment the connection count
+    statusFlag = false;  // stop 10 second status updates on client error
     mqttUpTime = millis() - mqttStartTime;
 	  mqttCumUpTime += mqttUpTime;
     mqttAvgUpTimeSec = mqttCumUpTime / (mqttConnectCount - 1) / 1000;
@@ -237,7 +237,7 @@ void loop() {
   if (newMsg == true) {
     // check message for a command
     newMsg = false;
-    Serial.println(msg);
+    //Serial.println(msg);
     if (strcmp(msg,"LED 1 ON") == 0) {
         digitalWrite(LED1, LOW);    // turn the LED ON by making the voltage LOW
       }
@@ -288,7 +288,8 @@ void loop() {
 	  payload += "\nCurrent Uptime: ";  // add current uptime to message payload
 	  payload += days_hrs_mins_secs((millis() - mqttStartTime)/1000); // add current uptime to message payload
 
-    Serial.print("Sending message to topic: ");
+    Serial.print(millis());
+    Serial.print(" Sending message to topic: ");
     Serial.println(outTopic);
     Serial.println(payload);
 
@@ -519,7 +520,7 @@ boolean  connectMQTT() {
     delay(5000);  // wait 5 seconds
   }
 
-  mqttConnectCount = 1;  // connection counter
+  //mqttConnectCount = 1;  // connection counter
   mqttStartTime = millis();
   Serial.println("You're connected to the MQTT broker!");
 
